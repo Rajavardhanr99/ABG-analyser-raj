@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced ABG Analyzer</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons for iconography -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* Global styles and animations */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeInUp {
+            animation: fadeInUp 0.5s ease-out forwards;
+        }
+        /* Custom styles for range input */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #2563eb; /* blue-600 */
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: 0 0 5px rgba(0,0,0,0.2);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #2563eb;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: 0 0 5px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-100 to-blue-50">
+
+    <div id="loading-overlay" class="fixed inset-0 bg-gray-100 flex justify-center items-center z-50">
+        <p class="text-gray-700 text-lg">Initializing Analyzer...</p>
+    </div>
+
+    <div class="min-h-screen p-2 sm:p-4 md:p-8 text-gray-800">
+        <header class="text-center mb-8 md:mb-12">
+            <h1 class="text-3xl sm:text-4xl md:text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-blue-500 to-sky-600 pb-2">
+                Advanced ABG Analyzer
+            </h1>
+            <p class="text-gray-600 mt-2 text-sm md:text-lg max-w-2xl mx-auto">Precision ABG interpretation with dynamic gap analysis and guided workup.</p>
+        </header>
+
+        <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
+            
+            <!-- Input Column -->
+            <div class="lg:col-span-5 bg-white shadow-2xl rounded-xl p-4 md:p-8 border border-gray-200/80">
+                <h2 class="text-2xl md:text-3xl font-semibold mb-6 md:mb-8 text-blue-700 border-b-2 border-blue-500/30 pb-4">1. Input Parameters</h2>
+                
+                <div class="mb-6">
+                    <label for="imageUploadInput" class="block text-sm font-medium text-gray-700 mb-2">Upload ABG Report (Optional)</label>
+                    <div class="relative flex items-center group">
+                        <i data-lucide="cloud-upload" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-hover:text-blue-500 transition-colors"></i>
+                        <input type="file" id="imageUploadInput" accept="image/*" class="block w-full text-sm text-gray-500 file:hidden pl-10 pr-3 py-2.5 bg-gray-50 border border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-150 ease-in-out" placeholder="Click to upload or drag & drop">
+                    </div>
+                    <p id="imageLoadingStatus" class="text-sm text-blue-600 mt-2 animate-pulse hidden">Processing image...</p>
+                    <p id="imageErrorStatus" class="text-sm text-red-600 mt-2 hidden"></p>
+                </div>
+
+                <div id="input-groups-container" class="space-y-4">
+                    <!-- Input groups will be injected here by JavaScript -->
+                </div>
+
+                <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                    <div>
+                        <label for="isChronicRespiratory" class="block text-xs font-medium text-gray-600 mb-1">Respiratory State</label>
+                        <select id="isChronicRespiratory" name="isChronicRespiratory" class="mt-1 w-full p-2.5 bg-white border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 transition-all duration-150 ease-in-out text-sm">
+                            <option value="acute">Acute</option>
+                            <option value="chronic">Chronic (>24-48h)</option>
+                        </select>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex items-center">
+                            <input id="useAlbuminCorrection" name="useAlbuminCorrection" type="checkbox" checked class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 bg-gray-100">
+                            <label for="useAlbuminCorrection" class="ml-2 block text-xs text-gray-700">Correct AG for Albumin</label>
+                        </div>
+                        <div class="flex items-center">
+                            <input id="usePotassiumInAG" name="usePotassiumInAG" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 bg-gray-100">
+                            <label for="usePotassiumInAG" class="ml-2 block text-xs text-gray-700">Include K+ in AG</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-8 flex flex-col sm:flex-row gap-4">
+                    <button id="analyzeBtn" class="flex-1 inline-flex items-center justify-center px-4 py-3 border border-transparent text-base font-medium rounded-lg shadow-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-blue-500 transition-transform transform hover:scale-105 active:scale-95 disabled:opacity-60">
+                        <i data-lucide="stethoscope" class="w-5 h-5 mr-2"></i> Analyze
+                    </button>
+                    <button id="resetBtn" class="flex-1 inline-flex items-center justify-center px-4 py-3 border border-gray-300 text-base font-medium rounded-lg shadow-lg text-gray-700 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-gray-500 transition-transform transform hover:scale-105 active:scale-95">
+                        <i data-lucide="refresh-cw" class="w-5 h-5 mr-2"></i> Reset
+                    </button>
+                </div>
+            </div>
+
+            <!-- Results Column -->
+            <div class="lg:col-span-7 bg-white shadow-2xl rounded-xl p-4 md:p-8 border border-gray-200/80">
+                <h2 class="text-2xl md:text-3xl font-semibold mb-6 md:mb-8 text-blue-700 border-b-2 border-blue-500/30 pb-4">2. Interpretation & Guidance</h2>
+                <div id="promptsContainer" class="mb-6 hidden"></div>
+                <div id="resultsContainer" class="space-y-4">
+                    <div id="resultsPlaceholder" class="text-center text-gray-500 py-16">
+                        <i data-lucide="file-text" class="mx-auto mb-6 opacity-40" style="width: 48px; height: 48px;"></i>
+                        <p class="text-lg sm:text-xl">Enter ABG values or upload an image to begin.</p>
+                        <p class="text-sm mt-2">Detailed analysis will appear here.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="text-center mt-12 md:mt-16 text-xs text-gray-500 tracking-wide">
+            <p>Developed by Dr. Rajavardhan Rangappa</p>
+            <p class="mt-1">&copy; 2024 ABG Analyzer Pro. Educational tool. Not for clinical decision-making.</p>
+            <p id="userIdDisplay" class="text-xs text-gray-400 mt-1"></p>
+        </footer>
+    </div>
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        
+        // This configuration is a placeholder. In a real environment, these values are provided.
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "YOUR_API_KEY", // Replace with your actual Firebase config
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        
+        let auth;
+        let user;
+
+        try {
+            const app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+
+            onAuthStateChanged(auth, async (currentUser) => {
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (currentUser) {
+                    user = currentUser;
+                    document.getElementById('userIdDisplay').textContent = `User ID: ${user.uid}`;
+                    if(loadingOverlay) loadingOverlay.classList.add('hidden');
+                } else {
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Error during sign-in:", error);
+                        if(loadingOverlay) loadingOverlay.classList.add('hidden'); // still hide on error
+                    }
+                }
+            });
+        } catch (error) {
+            console.error("Firebase initialization failed:", error);
+            const loadingOverlay = document.getElementById('loading-overlay');
+            if(loadingOverlay) loadingOverlay.classList.add('hidden');
+        }
+
+        // --- Constants and Globals ---
+        const NORMAL_RANGES = {
+            ph: { low: 7.35, high: 7.45 }, paco2: { low: 35, high: 45 }, hco3: { low: 22, high: 26 },
+            anionGap: { low: 8, high: 12 }, albumin: { low: 3.5, high: 5.0 }, be: { low: -2, high: 2 },
+            deltaGapRatio: { low: 1, high: 2 }, urineAnionGap: { low: -50, high: -20 },
+            urineChlorideMetabolicAlkalosis: { salineResponsive: 20 }, osmolarGap: { low: -10, high: 10 },
+            aaGradient: { normalHighRoomAirApprox: 15 },
+        };
+
+        const initialInputs = {
+            ph: '7.40', paco2: '40', hco3: '24', pao2: '', na: '', cl: '', k: '', albumin: '',
+            lactate: '', fio2: '0.21', glucose: '', bun: '', measuredOsmolality: '', uNa: '',
+            uK: '', uCl: '',
+        };
+
+        const inputFieldsConfig = [
+            { label: 'pH', name: 'ph', placeholder: '7.40', group: 'Core ABG', isSlider: true, min: '6.80', max: '7.80', numberStep: '0.01', sliderStep: '0.01' },
+            { label: 'PaCO2 (mmHg)', name: 'paco2', placeholder: '40', group: 'Core ABG', isSlider: true, min: '10', max: '120', numberStep: '0.1', sliderStep: '1' },
+            { label: 'HCO3 (mEq/L)', name: 'hco3', placeholder: '24', group: 'Core ABG', isSlider: true, min: '5', max: '60', numberStep: '0.1', sliderStep: '0.5' },
+            { label: 'PaO2 (mmHg)', name: 'pao2', step: '0.1', placeholder: '90', group: 'Core ABG' },
+            { label: 'FiO2 (decimal)', name: 'fio2', step: '0.01', placeholder: '0.21', group: 'Gas Exchange' },
+            { label: 'Sodium (Na)', name: 'na', placeholder: '140', group: 'Electrolytes' },
+            { label: 'Chloride (Cl)', name: 'cl', placeholder: '100', group: 'Electrolytes' },
+            { label: 'Potassium (K)', name: 'k', step: '0.1', placeholder: '4.0', group: 'Electrolytes', optional: true },
+            { label: 'Albumin (g/dL)', name: 'albumin', step: '0.1', placeholder: '4.0', group: 'Proteins/Other', optional: true },
+            { label: 'Lactate (mmol/L)', name: 'lactate', step: '0.1', placeholder: '1.0', group: 'Proteins/Other', optional: true },
+            { label: 'Glucose (mg/dL)', name: 'glucose', placeholder: '100', group: 'Osmolality Workup', optional: true },
+            { label: 'BUN (mg/dL)', name: 'bun', placeholder: '15', group: 'Osmolality Workup', optional: true },
+            { label: 'Measured Osmolality', name: 'measuredOsmolality', placeholder: '290', group: 'Osmolality Workup', optional: true },
+            { label: 'Urine Na (mEq/L)', name: 'uNa', placeholder: '20', group: 'Urine Workup', optional: true },
+            { label: 'Urine K (mEq/L)', name: 'uK', placeholder: '20', group: 'Urine Workup', optional: true },
+            { label: 'Urine Cl (mEq/L)', name: 'uCl', placeholder: '20', group: 'Urine Workup', optional: true },
+        ];
+        
+        const DOMElements = {};
+
+        const openInputGroups = {
+            'Core ABG': true, 'Gas Exchange': true, 'Electrolytes': true,
+            'Proteins/Other': false, 'Osmolality Workup': false, 'Urine Workup': false,
+        };
+
+        // --- Functions ---
+        const parseNum = (val) => val === '' || val === null || val === undefined ? null : parseFloat(val);
+
+        const createIcon = (name, colorClass) => `<i data-lucide="${name}" class="w-5 h-5 ${colorClass} mr-2.5 flex-shrink-0"></i>`;
+
+        function addStep(title, details, interpretation = '', formula = '', result = '', icon) {
+            const formulaHtml = formula ? `<p class="text-xs text-gray-500 italic my-2 p-2 bg-gray-100 rounded-md">Formula: ${formula.replace(/\n/g, '<br>')}</p>` : '';
+            const resultHtml = result ? `<p class="text-sm font-medium text-blue-600 mb-1.5">Result: <span class="text-gray-900">${result}</span></p>` : '';
+            const detailsHtml = details ? `<p class="text-sm text-gray-700 mb-1.5 leading-relaxed">${details}</p>` : '';
+            const interpHtml = interpretation ? `<p class="text-sm text-gray-800 leading-relaxed">${interpretation}</p>` : '';
+
+            return `
+                <div class="p-3 md:p-4 bg-gray-50/70 rounded-lg shadow-lg border border-gray-200/90 animate-fadeInUp">
+                    <h3 class="text-base md:text-lg font-semibold text-blue-700 mb-2 flex items-center">
+                        ${icon}
+                        ${title}
+                    </h3>
+                    ${detailsHtml}
+                    ${formulaHtml}
+                    ${resultHtml}
+                    ${interpHtml}
+                </div>`;
+        }
+        
+        function analyzeABG() {
+            let analysisHtml = '';
+            let promptsHtml = '';
+            let localPrompts = [];
+            const addLocalPrompt = (message, field) => {
+                if (!localPrompts.find(p => p.field === field) && (!DOMElements[field] || DOMElements[field].value === '' || DOMElements[field].value === null)) {
+                    localPrompts.push({ message, field });
+                }
+            };
+            
+            if(DOMElements.resultsPlaceholder) DOMElements.resultsPlaceholder.classList.add('hidden');
+            let summaryPoints = [];
+
+            const getInputs = () => {
+                const data = {};
+                inputFieldsConfig.forEach(field => data[field.name] = DOMElements[field.name] ? DOMElements[field.name].value : null);
+                if(DOMElements.isChronicRespiratory) data.isChronicRespiratory = DOMElements.isChronicRespiratory.value;
+                if(DOMElements.useAlbuminCorrection) data.useAlbuminCorrection = DOMElements.useAlbuminCorrection.checked;
+                if(DOMElements.usePotassiumInAG) data.usePotassiumInAG = DOMElements.usePotassiumInAG.checked;
+                return data;
+            };
+
+            const inputs = getInputs();
+            const ph = parseNum(inputs.ph);
+            const paco2 = parseNum(inputs.paco2);
+            const hco3_actual = parseNum(inputs.hco3);
+            const pao2_actual = parseNum(inputs.pao2);
+            const fio2 = parseNum(inputs.fio2);
+            
+            if (ph === null || paco2 === null || hco3_actual === null) {
+              analysisHtml += addStep("Initial Values Missing", "Please enter pH, PaCO2, and HCO3 values to start the analysis.", "", "", "", createIcon('alert-circle', 'text-red-600'));
+              if (ph === null) addLocalPrompt("pH is required.", "ph");
+              if (paco2 === null) addLocalPrompt("PaCO2 is required.", "paco2");
+              if (hco3_actual === null) addLocalPrompt("HCO3 is required.", "hco3");
+            } else {
+
+                analysisHtml += addStep("Input Values", `pH: ${ph}, PaCO2: ${paco2} mmHg, HCO3: ${hco3_actual} mEq/L, PaO2: ${pao2_actual !== null ? pao2_actual + ' mmHg' : 'N/A'}, FiO2: ${fio2 !== null ? (fio2*100).toFixed(0) + '%' : 'N/A'}`, "", "", "", createIcon('stethoscope', 'text-blue-600'));
+    
+                let primaryDisorder = "Undetermined";
+                let primaryDisorderType = ""; 
+    
+                if (ph < NORMAL_RANGES.ph.low) { 
+                  summaryPoints.push(`Acidemia (pH ${ph}).`);
+                  if (paco2 > NORMAL_RANGES.paco2.high) { primaryDisorder = "Respiratory Acidosis"; primaryDisorderType = "respiratory_acidosis"; } 
+                  else if (hco3_actual < NORMAL_RANGES.hco3.low) { primaryDisorder = "Metabolic Acidosis"; primaryDisorderType = "metabolic_acidosis"; }
+                  else { primaryDisorder = "Acidosis (Pattern unclear)"; }
+                } else if (ph > NORMAL_RANGES.ph.high) { 
+                  summaryPoints.push(`Alkalemia (pH ${ph}).`);
+                  if (paco2 < NORMAL_RANGES.paco2.low) { primaryDisorder = "Respiratory Alkalosis"; primaryDisorderType = "respiratory_alkalosis"; } 
+                  else if (hco3_actual > NORMAL_RANGES.hco3.high) { primaryDisorder = "Metabolic Alkalosis"; primaryDisorderType = "metabolic_alkalosis"; }
+                  else { primaryDisorder = "Alkalosis (Pattern unclear)"; }
+                } else { 
+                    summaryPoints.push(`Normal pH (${ph}).`);
+                    if (paco2 > NORMAL_RANGES.paco2.high && hco3_actual > NORMAL_RANGES.hco3.high) { primaryDisorder = "Mixed: Respiratory Acidosis and Metabolic Alkalosis (Compensated/Normal pH)"; primaryDisorderType = "mixed_resp_acid_met_alk"; } 
+                    else if (paco2 < NORMAL_RANGES.paco2.low && hco3_actual < NORMAL_RANGES.hco3.low) { primaryDisorder = "Mixed: Respiratory Alkalosis and Metabolic Acidosis (Compensated/Normal pH)"; primaryDisorderType = "mixed_resp_alk_met_acid"; }
+                    else { primaryDisorder = "Normal Acid-Base Status"; primaryDisorderType = "normal"; }
+                }
+                analysisHtml += addStep("Primary Disorder", primaryDisorder, `Based on pH: ${ph}, PaCO2: ${paco2}, HCO3: ${hco3_actual}.`, "", "", primaryDisorderType === "normal" ? createIcon('check-circle', 'text-green-600') : createIcon('alert-circle', 'text-orange-600'));
+                if (primaryDisorderType !== "normal") summaryPoints.push(`Primary disorder: ${primaryDisorder}.`);
+                else summaryPoints.push("Overall normal acid-base status based on pH, PaCO2, and HCO3.");
+
+                if (pao2_actual !== null && fio2 !== null && paco2 !== null) {
+                    const PAO2 = (fio2 * 713) - (paco2 / 0.8);
+                    const AaGradient = PAO2 - pao2_actual;
+                    let aaInterpretation = `PAO2: ${PAO2.toFixed(1)} mmHg. A-a Gradient: ${AaGradient.toFixed(1)} mmHg. `;
+                    let aaSummary = `A-a Gradient is ${AaGradient.toFixed(1)} mmHg.`;
+                    const expectedMaxAaOnFio2 = NORMAL_RANGES.aaGradient.normalHighRoomAirApprox + ((fio2 - 0.21) / 0.1) * 7; 
+                    if (AaGradient > expectedMaxAaOnFio2) {
+                         aaInterpretation += `Elevated A-a gradient suggests impaired gas exchange.`;
+                         aaSummary += ` This is elevated for FiO2 ${(fio2*100).toFixed(0)}%, suggesting impaired gas exchange.`;
+                    } else {
+                         aaInterpretation += `A-a gradient may be within expected range for FiO2 of ${(fio2*100).toFixed(0)}%.`;
+                         aaSummary += ` This may be normal for FiO2 ${(fio2*100).toFixed(0)}%.`;
+                    }
+                    analysisHtml += addStep("A-a Gradient", aaInterpretation, "", `PAO2 = (FiO2*(760-47))-(PaCO2/0.8)`, `A-a Grad: ${AaGradient.toFixed(1)} mmHg`, createIcon('calculator', 'text-cyan-600'));
+                    summaryPoints.push(aaSummary);
+                } else if (primaryDisorderType !== "normal") {
+                    if (pao2_actual === null) addLocalPrompt("PaO2 for A-a Gradient.", "pao2");
+                    if (fio2 === null) addLocalPrompt("FiO2 for A-a Gradient.", "fio2");
+                }
+                
+                const na = parseNum(inputs.na); const cl = parseNum(inputs.cl); const k = parseNum(inputs.k); const alb = parseNum(inputs.albumin);
+                let anionGap = null; let agInterpretation = "Not calculated. Requires Na and Cl.";
+                let isHAGMA = false; let isNAGMA = false;
+
+                if (na !== null && cl !== null && hco3_actual !== null) {
+                    anionGap = inputs.usePotassiumInAG && k !== null ? (na + k) - (cl + hco3_actual) : na - (cl + hco3_actual);
+                    let formulaAG = inputs.usePotassiumInAG && k !== null ? `AG=(Na+K)-(Cl+HCO3)` : `AG=Na-(Cl+HCO3)`;
+                    let correctedAG = anionGap;
+                    if (inputs.useAlbuminCorrection && alb !== null) {
+                        const albuminCorrectionFactor = 2.5 * (NORMAL_RANGES.albumin.low - alb);
+                        correctedAG = anionGap + albuminCorrectionFactor;
+                        formulaAG += `\nCorrected AG = AG + 2.5 * (NormAlb - Alb)`;
+                        agInterpretation = `Calc AG:${anionGap.toFixed(1)}. Alb:${alb}. Corrected AG:${correctedAG.toFixed(1)}.`;
+                        anionGap = correctedAG;
+                    } else if (inputs.useAlbuminCorrection && alb === null) {
+                        agInterpretation = `Calc AG:${anionGap.toFixed(1)}. Albumin not provided for correction.`;
+                        addLocalPrompt("Albumin (for corrected AG).", "albumin");
+                    } else { agInterpretation = `Calc AG:${anionGap.toFixed(1)}. Albumin correction not used.`; }
+
+                    if (anionGap > NORMAL_RANGES.anionGap.high) {
+                        agInterpretation += ` High Anion Gap.`; if(primaryDisorderType === "metabolic_acidosis") isHAGMA = true; summaryPoints.push(`Anion Gap is high at ${anionGap.toFixed(1)} mEq/L.`);
+                    } else {
+                        agInterpretation += ` Normal Anion Gap.`; if(primaryDisorderType === "metabolic_acidosis") isNAGMA = true; summaryPoints.push(`Anion Gap is normal at ${anionGap.toFixed(1)} mEq/L.`);
+                    }
+                    analysisHtml += addStep("Anion Gap", agInterpretation, `(Normal: ${NORMAL_RANGES.anionGap.low}-${NORMAL_RANGES.anionGap.high})`, formulaAG, `${anionGap.toFixed(1)}`, createIcon('calculator', 'text-purple-600'));
+                } else if (primaryDisorderType !== "normal") {
+                    if (na === null) addLocalPrompt("Sodium (Na) for Anion Gap.", "na");
+                    if (cl === null) addLocalPrompt("Chloride (Cl) for Anion Gap.", "cl");
+                }
+                
+                if (isHAGMA && hco3_actual !== null && anionGap !== null) { 
+                    const dAG=anionGap-NORMAL_RANGES.anionGap.high; const dHCO3=24-hco3_actual; let dRatio=null;
+                    if (dHCO3!==0) {
+                        dRatio=dAG/dHCO3;
+                        let interp = `Ratio:${dRatio.toFixed(2)}. `;
+                        if(dRatio<NORMAL_RANGES.deltaGapRatio.low) interp += 'Suggests coexisting NAGMA.'; else if(dRatio>NORMAL_RANGES.deltaGapRatio.high) interp += 'Suggests coexisting Met. Alkalosis.'; else interp += 'Suggests pure HAGMA.';
+                        analysisHtml += addStep("Delta Ratio", interp, `(Norm Ratio:${NORMAL_RANGES.deltaGapRatio.low}-${NORMAL_RANGES.deltaGapRatio.high})`, `ΔRatio=(AG-12)/(24-HCO3)`, `Ratio:${dRatio.toFixed(2)}`, createIcon('calculator', 'text-purple-600'));
+                        summaryPoints.push(`Delta ratio (${dRatio.toFixed(2)}) ${interp.split('.')[1]}`);
+                    }
+                }
+            }
+
+            if (summaryPoints.length > 0) {
+                 analysisHtml += addStep("Final Interpretations", summaryPoints.join(' '), "", "", "", createIcon('message-square-text', 'text-indigo-600'));
+            }
+            
+            if(DOMElements.resultsContainer) DOMElements.resultsContainer.innerHTML = analysisHtml;
+            
+            if (localPrompts.length > 0) {
+                promptsHtml = `<div class="p-4 bg-blue-50 border border-blue-300/70 rounded-lg shadow-md">
+                    <h3 class="text-lg font-semibold text-blue-700 mb-2 flex items-center">
+                        ${createIcon('help-circle', 'text-blue-600')} Additional Information Needed:
+                    </h3>
+                    <ul class="list-disc list-inside space-y-1.5 text-sm text-gray-700 pl-2">
+                        ${localPrompts.map(p => `<li>${p.message} (Field: <span class="font-semibold text-gray-900">${p.field}</span>)</li>`).join('')}
+                    </ul>
+                </div>`;
+                if(DOMElements.promptsContainer) {
+                    DOMElements.promptsContainer.innerHTML = promptsHtml;
+                    DOMElements.promptsContainer.classList.remove('hidden');
+                }
+            } else {
+                 if(DOMElements.promptsContainer) {
+                    DOMElements.promptsContainer.classList.add('hidden');
+                    DOMElements.promptsContainer.innerHTML = '';
+                 }
+            }
+
+            lucide.createIcons();
+        }
+
+        function resetForm() {
+            inputFieldsConfig.forEach(field => {
+                const element = DOMElements[field.name];
+                if (element) {
+                    element.value = initialInputs[field.name] || '';
+                    if (field.isSlider && DOMElements[field.name + 'Slider']) {
+                        DOMElements[field.name + 'Slider'].value = initialInputs[field.name] || '';
+                    }
+                }
+            });
+            if (DOMElements.isChronicRespiratory) DOMElements.isChronicRespiratory.value = 'acute';
+            if (DOMElements.useAlbuminCorrection) DOMElements.useAlbuminCorrection.checked = true;
+            if (DOMElements.usePotassiumInAG) DOMElements.usePotassiumInAG.checked = false;
+            if (DOMElements.imageUploadInput) DOMElements.imageUploadInput.value = '';
+            
+            if (DOMElements.imageErrorStatus) DOMElements.imageErrorStatus.classList.add('hidden');
+            if (DOMElements.imageLoadingStatus) DOMElements.imageLoadingStatus.classList.add('hidden');
+            if (DOMElements.resultsContainer) DOMElements.resultsContainer.innerHTML = '';
+            if (DOMElements.resultsPlaceholder) DOMElements.resultsPlaceholder.classList.remove('hidden');
+            if (DOMElements.promptsContainer) DOMElements.promptsContainer.classList.add('hidden');
+            lucide.createIcons();
+        }
+
+
+        async function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            DOMElements.imageLoadingStatus.classList.remove('hidden');
+            DOMElements.imageErrorStatus.classList.add('hidden');
+            DOMElements.analyzeBtn.disabled = true;
+
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onloadend = async () => {
+                const base64ImageData = reader.result.split(',')[1];
+                const promptText = `Analyze the provided image of a lab report. Extract the following values: pH, PaCO2, HCO3, PaO2, FiO2, Na, Cl, K, Albumin, Glucose, BUN, Measured Osmolality, Urine Na, Urine K, Urine Cl. Return a single JSON object with keys: "ph", "paco2", "hco3", "pao2", "fio2", "na", "cl", "k", "albumin", "glucose", "bun", "measuredOsmolality", "uNa", "uK", "uCl". Convert FiO2 percentage to decimal. If a value isn't found, omit its key.`;
+                
+                const payload = {
+                    contents: [{ role: "user", parts: [{ text: promptText }, { inlineData: { mimeType: file.type, data: base64ImageData } }] }],
+                    generationConfig: { responseMimeType: "application/json" }
+                };
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                try {
+                    const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    if (!response.ok) throw new Error(`API failed with status ${response.status}`);
+                    const result = await response.json();
+                    
+                    if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
+                        const rawJsonText = result.candidates[0].content.parts[0].text;
+                        const cleanedJsonText = rawJsonText.replace(/^```json\s*|```\s*$/g, '');
+                        const data = JSON.parse(cleanedJsonText);
+                        
+                        for (const key in data) {
+                            if (DOMElements[key] && data[key] !== null) {
+                                let value = data[key];
+                                if (key === 'fio2' && value > 1) value = value / 100;
+                                DOMElements[key].value = String(value);
+                                if (DOMElements[key + 'Slider']) DOMElements[key + 'Slider'].value = String(value);
+                            }
+                        }
+                        analyzeABG();
+                    } else { throw new Error("No valid data in API response."); }
+
+                } catch (error) {
+                    console.error("Image processing error:", error);
+                    DOMElements.imageErrorStatus.textContent = `Error: ${error.message}`;
+                    DOMElements.imageErrorStatus.classList.remove('hidden');
+                } finally {
+                    DOMElements.imageLoadingStatus.classList.add('hidden');
+                    DOMElements.analyzeBtn.disabled = false;
+                }
+            };
+            reader.onerror = () => {
+                DOMElements.imageErrorStatus.textContent = "Error reading file.";
+                DOMElements.imageErrorStatus.classList.remove('hidden');
+                DOMElements.imageLoadingStatus.classList.add('hidden');
+                DOMElements.analyzeBtn.disabled = false;
+            };
+        }
+        
+        // --- Dynamic UI Generation & Element Referencing ---
+        function generateInputGroups() {
+            const groupedFields = inputFieldsConfig.reduce((acc, field) => {
+                acc[field.group] = acc[field.group] || [];
+                acc[field.group].push(field);
+                return acc;
+            }, {});
+
+            let html = '';
+            for (const groupName in groupedFields) {
+                const fields = groupedFields[groupName];
+                const isOpen = openInputGroups[groupName];
+                
+                const fieldsHtml = fields.map(field => {
+                  if (field.isSlider) {
+                    return `
+                      <div class="sm:col-span-2">
+                        <label for="${field.name}-slider" class="block text-xs font-medium text-gray-600 mb-1">
+                          ${field.label} ${field.optional ? '<span class="text-gray-400">(Opt.)</span>' : ''}
+                        </label>
+                        <div class="flex items-center space-x-2 mt-1">
+                          <input type="range" name="${field.name}" id="${field.name}-slider" value="${initialInputs[field.name]}" min="${field.min}" max="${field.max}" step="${field.sliderStep}" class="w-full h-2.5 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 hover:bg-gray-300">
+                          <input type="number" name="${field.name}" id="${field.name}" value="${initialInputs[field.name]}" min="${field.min}" max="${field.max}" step="${field.numberStep}" class="w-20 p-2.5 bg-white border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-400 text-sm" placeholder="${field.placeholder}">
+                        </div>
+                      </div>`;
+                  } else {
+                    return `
+                      <div>
+                        <label for="${field.name}" class="block text-xs font-medium text-gray-600 mb-1">
+                          ${field.label} ${field.optional ? '<span class="text-gray-400">(Opt.)</span>' : ''}
+                        </label>
+                        <input type="number" name="${field.name}" id="${field.name}" step="${field.step || 'any'}" placeholder="${field.placeholder}" class="mt-1 w-full p-2.5 bg-white border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-400 transition-all duration-150 ease-in-out text-sm">
+                      </div>`;
+                  }
+                }).join('');
+
+                html += `
+                  <div class="bg-gray-50/50 p-1 rounded-lg border border-gray-200/70">
+                    <button data-group-name="${groupName}" class="group-toggle-btn w-full flex justify-between items-center p-3 text-left text-base md:text-lg font-medium text-blue-700 hover:bg-gray-100 rounded-md transition-colors">
+                      ${groupName}
+                      <i data-lucide="${isOpen ? 'chevron-up' : 'chevron-down'}" class="w-5 h-5"></i>
+                    </button>
+                    <div class="group-content p-3 md:p-4 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4 transition-all duration-300 ease-in-out ${isOpen ? '' : 'hidden'}">
+                      ${fieldsHtml}
+                    </div>
+                  </div>`;
+            }
+            const container = document.getElementById('input-groups-container');
+            if(container) container.innerHTML = html;
+        }
+        
+        function populateDOMElements() {
+             inputFieldsConfig.forEach(field => {
+                DOMElements[field.name] = document.getElementById(field.name);
+                if(field.isSlider) {
+                    DOMElements[field.name + 'Slider'] = document.getElementById(field.name + '-slider');
+                }
+            });
+            Object.assign(DOMElements, {
+                analyzeBtn: document.getElementById('analyzeBtn'),
+                resetBtn: document.getElementById('resetBtn'),
+                resultsContainer: document.getElementById('resultsContainer'),
+                resultsPlaceholder: document.getElementById('resultsPlaceholder'),
+                promptsContainer: document.getElementById('promptsContainer'),
+                imageUploadInput: document.getElementById('imageUploadInput'),
+                imageLoadingStatus: document.getElementById('imageLoadingStatus'),
+                imageErrorStatus: document.getElementById('imageErrorStatus'),
+                inputGroupsContainer: document.getElementById('input-groups-container'),
+                isChronicRespiratory: document.getElementById('isChronicRespiratory'),
+                useAlbuminCorrection: document.getElementById('useAlbuminCorrection'),
+                usePotassiumInAG: document.getElementById('usePotassiumInAG'),
+            });
+        }
+
+        // --- Event Listeners ---
+        function addEventListeners() {
+            if(DOMElements.analyzeBtn) DOMElements.analyzeBtn.addEventListener('click', analyzeABG);
+            if(DOMElements.resetBtn) DOMElements.resetBtn.addEventListener('click', resetForm);
+            if(DOMElements.imageUploadInput) DOMElements.imageUploadInput.addEventListener('change', handleImageUpload);
+            
+            inputFieldsConfig.forEach(field => {
+                const numInput = DOMElements[field.name];
+                if (numInput && field.isSlider) {
+                    const sliderInput = DOMElements[field.name + 'Slider'];
+                    if (sliderInput) {
+                        sliderInput.addEventListener('input', () => numInput.value = sliderInput.value);
+                        numInput.addEventListener('input', () => sliderInput.value = numInput.value);
+                    }
+                }
+                if (numInput && ['ph', 'paco2', 'hco3'].includes(field.name)) {
+                     numInput.addEventListener('input', analyzeABG);
+                }
+            });
+
+            document.querySelectorAll('.group-toggle-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const groupName = e.currentTarget.dataset.groupName;
+                    const content = e.currentTarget.nextElementSibling;
+                    const icon = e.currentTarget.querySelector('i');
+                    
+                    openInputGroups[groupName] = !openInputGroups[groupName];
+                    content.classList.toggle('hidden');
+                    icon.setAttribute('data-lucide', openInputGroups[groupName] ? 'chevron-up' : 'chevron-down');
+                    lucide.createIcons();
+                });
+            });
+        }
+
+
+        // --- Initial Load ---
+        document.addEventListener('DOMContentLoaded', () => {
+            generateInputGroups();
+            populateDOMElements(); // <-- FIX: Populate elements AFTER they are created.
+            addEventListeners();
+            lucide.createIcons();
+            resetForm();
+        });
+
+    </script>
+</body>
+</html>
+
